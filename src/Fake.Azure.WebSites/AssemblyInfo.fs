@@ -1,24 +1,15 @@
-﻿namespace FakeAzureWebSites.AssemblyInfo
-
+﻿namespace System
 open System.Reflection
-open System.Runtime.CompilerServices
 open System.Runtime.InteropServices
 
-[<assembly: AssemblyTitle("Fake.Azure.WebSites")>]
-[<assembly: AssemblyDescription("")>]
-[<assembly: AssemblyConfiguration("")>]
-[<assembly: AssemblyCompany("")>]
-[<assembly: AssemblyProduct("Fake.Azure.WebSites")>]
-[<assembly: AssemblyCopyright("Copyright © Jakub 'Fiołek' Fijałkowski 2016")>]
-[<assembly: AssemblyTrademark("")>]
-[<assembly: AssemblyCulture("")>]
+[<assembly: AssemblyProductAttribute("FAKE - Azure WebSites helper")>]
+[<assembly: AssemblyVersionAttribute("0.1.0")>]
+[<assembly: AssemblyInformationalVersionAttribute("0.1.0")>]
+[<assembly: AssemblyFileVersionAttribute("0.1.0")>]
+[<assembly: AssemblyTitleAttribute("FAKE - Azure WebSites helper")>]
+[<assembly: GuidAttribute("d683a57b-a955-4307-8319-8dae6e710825")>]
+do ()
 
-[<assembly: ComVisible(false)>]
-
-[<assembly: Guid("d683a57b-a955-4307-8319-8dae6e710825")>]
-
-[<assembly: AssemblyVersion("1.0.0.0")>]
-[<assembly: AssemblyFileVersion("1.0.0.0")>]
-
-do
-    ()
+module internal AssemblyVersionInformation =
+    let [<Literal>] Version = "0.1.0"
+    let [<Literal>] InformationalVersion = "0.1.0"

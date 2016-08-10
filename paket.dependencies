@@ -1,4 +1,13 @@
+content: none
 source https://www.nuget.org/api/v2/
 
 nuget Fake.Lib
 nuget FSharp.Data
+
+group Build
+
+content: none
+source http://nuget.org/api/v2
+
+nuget FAKE
+nuget Nuget.CommandLine

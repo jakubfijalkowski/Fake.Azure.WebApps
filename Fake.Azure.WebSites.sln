@@ -10,7 +10,12 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "misc", "misc", "{8839CD03-8
 		.editorconfig = .editorconfig
 		.gitattributes = .gitattributes
 		.gitignore = .gitignore
+		build.cmd = build.cmd
+		build.fsx = build.fsx
+		CHANGELOG.md = CHANGELOG.md
+		Fake.Azure.WebSites.nuspec = Fake.Azure.WebSites.nuspec
 		paket.dependencies = paket.dependencies
+		README.md = README.md
 	EndProjectSection
 EndProject
 Global
