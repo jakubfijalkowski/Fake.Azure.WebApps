@@ -253,3 +253,6 @@ paket-files/
 ## Custom
 build
 nuget
+samples/**/wwwroot/lib
+samples/**/deploy
+samples/**/deploy.zip

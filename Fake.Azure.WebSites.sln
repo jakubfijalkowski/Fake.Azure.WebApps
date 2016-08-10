@@ -18,6 +18,14 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "misc", "misc", "{8839CD03-8
 		README.md = README.md
 	EndProjectSection
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "samples", "samples", "{A7FAA9EA-D7BC-4D25-8074-1F6AEA1AE135}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "dotnetcore", "dotnetcore", "{A49C0BF4-2AE1-4303-AF48-5F1BE0D52419}"
+	ProjectSection(SolutionItems) = preProject
+		samples\dotnetcore\build.cmd = samples\dotnetcore\build.cmd
+		samples\dotnetcore\build.fsx = samples\dotnetcore\build.fsx
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -31,5 +39,8 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{A49C0BF4-2AE1-4303-AF48-5F1BE0D52419} = {A7FAA9EA-D7BC-4D25-8074-1F6AEA1AE135}
 	EndGlobalSection
 EndGlobal
