@@ -60,7 +60,7 @@ Target "Upload" (fun () ->
     let settings = loadWebSiteSettings ()
     let credentials = Azure.WebSites.acquireCredentials settings
 
-    Azure.WebSites.stopWebSite settings credentials
+    Azure.WebSites.stopWebSiteAndWait settings credentials
     Azure.WebSites.pushZipFile settings credentials deployZip
     Azure.WebSites.startWebSite settings credentials
 )

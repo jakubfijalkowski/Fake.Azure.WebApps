@@ -12,6 +12,7 @@ let private AzurePublishProfile = "FTP"
 let private tokenEndpoint : Printf.StringFormat<_> = "https://login.microsoftonline.com/%s/oauth2/token"
 let private siteEndpoint : Printf.StringFormat<_> = "https://management.azure.com/subscriptions/%s/resourcegroups/%s/providers/Microsoft.Web/sites/%s/%s?api-version=2016-03-01"
 let private zipEndpoint : Printf.StringFormat<_> = "https://%s.scm.azurewebsites.net/api/zip/%s"
+let private siteAddress : Printf.StringFormat<_> = "https://%s.azurewebsites.net"
 
 type private AzureTokenResponse = JsonProvider<"""{"token_type":"","expires_in":"","ext_expires_in":"","expires_on":"","not_before":"","resource":"","access_token":""}""">
 type private AzurePublishXmlResponse = XmlProvider<"""<publishData><publishProfile publishMethod="" userName="" userPWD="" /><publishProfile publishMethod="" userName="" userPWD="" /></publishData>""">
@@ -39,6 +40,10 @@ let private makeBasicAuthHeader cred =
     |> Convert.ToBase64String
     |> (+) "Basic "
     |> HttpRequestHeaders.Authorization
+
+let private getSiteStatus settings =
+    let url = sprintf siteAddress settings.WebSiteName
+    Http.Request(url, silentHttpErrors = true) |> fun r -> r.StatusCode
 
 let private makeEmptyRequest url httpMethod credentials =
     let headers = [ makeBearerHeader credentials.AccessToken ]
@@ -153,27 +158,37 @@ let stopWebSite settings credentials =
     finally
         traceEndTask "Azure.WebSites.Start" ""
 
-/// Default wait time for `stopWebSiteAndWait`.
-[<Literal>]
-let DefaultWaitTime : int = 1000
-
-/// Stops the WebSite using ARM and sleeps the thread for specified amount of time.
+/// Waits until the site is stopped (i.e. returns `503 Unavailable` status code).
 ///
-/// The sleeping may be required as WebSite does not have to be stopped right away (IIS may still be running), but we
-/// don't have any reliable way to ensure that.
+/// This function repeatedly calls the root of the website, waiting one second between requests.
+///
+/// ## Parameters
+///
+///  - `settings` - WebSite settings.
+///
+let rec ensureWebsiteIsStopped settings =
+    let response = getSiteStatus settings
+    if response <> 503 then
+        traceVerbose "Site is still running, waiting..."
+        System.Threading.Thread.Sleep 1000
+        ensureWebsiteIsStopped settings
+    else
+        traceVerbose "Site has stopped"
+
+/// Stops the WebSite using ARM and waits until the site is really stopped (IIS is not running).
+///
+/// Uses `ensureWebsiteIsStopped`.
 ///
 /// ## Parameters
 ///
 ///  - `settings` - WebSite settings.
 ///  - `credentials` - Azure and WebSite credentials acquired with `acquireCredentials`.
-///  - `waitTime` - Specifies how long the thread should be sleeping.
 ///
-let stopWebSiteAndWait settings credentials (waitTime : int) =
+let stopWebSiteAndWait settings credentials =
     traceStartTask "Azure.WebSites.Start" (sprintf "WebSite: %s" settings.WebSiteName)
     try
         callWebsiteEndpoint settings credentials HttpMethod.Post "stop" |> ignore
-        traceVerbose "Waiting for the website to really stop"
-        System.Threading.Thread.Sleep waitTime
+        ensureWebsiteIsStopped settings
     finally
         traceEndTask "Azure.WebSites.Start" ""
 
