@@ -48,7 +48,8 @@ let private makeBasicAuthHeader cred =
 
 let private getSiteStatus settings =
     let url = sprintf siteAddress settings.WebAppName
-    Http.Request(url, silentHttpErrors = true) |> fun r -> r.StatusCode
+    Http.Request(url, httpMethod = HttpMethod.Head, silentHttpErrors = true)
+    |> fun r -> r.StatusCode
 
 let private makeEmptyRequest url httpMethod credentials =
     let headers = [ makeBearerHeader credentials.AccessToken ]
