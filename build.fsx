@@ -69,6 +69,7 @@ Target "CreateNuGet" (fun () ->
             Description = "This package provides FAKE helpers that allows to reliably publish your app to Azure WebApps using just a FAKE scripts."
             Version = release.NugetVersion
             OutputPath = nugetDir
+            WorkingDir = nugetDir
             ReleaseNotes = release.Notes |> toLines
             Publish = false
             Dependencies = deps })
