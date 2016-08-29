@@ -1,5 +1,5 @@
 #r @"../../packages/build/FAKE/tools/FakeLib.dll"
-#r @"../../build/Fake.Azure.WebSites.dll"
+#r @"../../build/Fake.Azure.WebApps.dll"
 
 open System
 open System.IO
@@ -7,7 +7,7 @@ open FSharp.Data
 
 open Fake
 open Fake.ZipHelper
-open Fake.Azure.WebSites
+open Fake.Azure.WebApps
 
 let ProjectName = "dotnetcore"
 
@@ -19,8 +19,8 @@ let deployZip = baseDir @@ "deploy.zip" |> FullName
 
 let currentConfig = getBuildParamOrDefault "configuration" "Release"
 
-let loadWebSiteSettings () =
-    Azure.WebSites.readSiteSettingsFromEnv (fun s ->
+let loadWebAppSettings () =
+    Azure.WebApps.readSiteSettingsFromEnv (fun s ->
         { s with
             // TenantId, ClientId and ClientSecret SHOULD NOT be hard-coded here because they are considered sensitive.
             // Use env. variables (AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET) on your CI server to
@@ -28,7 +28,7 @@ let loadWebSiteSettings () =
 
             SubscriptionId = ""
             ResourceGroup  = ""
-            WebSiteName    = ""
+            WebAppName     = ""
             DeployPath     = "" })
 
 Target "Clean" (fun () ->
@@ -57,12 +57,12 @@ Target "Publish" (fun () ->
 )
 
 Target "Upload" (fun () ->
-    let settings = loadWebSiteSettings ()
-    let credentials = Azure.WebSites.acquireCredentials settings
+    let settings = loadWebAppSettings ()
+    let config = Azure.WebApps.acquireCredentials settings
 
-    Azure.WebSites.stopWebSiteAndWait settings credentials
-    Azure.WebSites.pushZipFile settings credentials deployZip
-    Azure.WebSites.startWebSite settings credentials
+    Azure.WebApps.stopWebAppAndWait config
+    Azure.WebApps.pushZipFile config deployZip
+    Azure.WebApps.startWebApp config
 )
 
 Target "Default" DoNothing

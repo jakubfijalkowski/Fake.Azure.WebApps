@@ -7,12 +7,12 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>d683a57b-a955-4307-8319-8dae6e710825</ProjectGuid>
     <OutputType>Library</OutputType>
-    <RootNamespace>Fake.Azure.WebSites</RootNamespace>
-    <AssemblyName>Fake.Azure.WebSites</AssemblyName>
+    <RootNamespace>Fake.Azure.WebApps</RootNamespace>
+    <AssemblyName>Fake.Azure.WebApps</AssemblyName>
     <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
     <TargetFSharpCoreVersion>4.4.0.0</TargetFSharpCoreVersion>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
-    <Name>Fake.Azure.WebSites</Name>
+    <Name>Fake.Azure.WebApps</Name>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -22,7 +22,7 @@
     <OutputPath>bin\Debug\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <WarningLevel>3</WarningLevel>
-    <DocumentationFile>bin\Debug\Fake.Azure.WebSites.XML</DocumentationFile>
+    <DocumentationFile>bin\Debug\Fake.Azure.WebApps.XML</DocumentationFile>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -31,7 +31,7 @@
     <OutputPath>bin\Release\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <WarningLevel>3</WarningLevel>
-    <DocumentationFile>bin\Release\Fake.Azure.WebSites.XML</DocumentationFile>
+    <DocumentationFile>bin\Release\Fake.Azure.WebApps.XML</DocumentationFile>
   </PropertyGroup>
   <PropertyGroup>
     <MinimumVisualStudioVersion Condition="'$(MinimumVisualStudioVersion)' == ''">11</MinimumVisualStudioVersion>
@@ -51,7 +51,7 @@
   <Import Project="$(FSharpTargetsPath)" />
   <ItemGroup>
     <Compile Include="AssemblyInfo.fs" />
-    <Compile Include="WebSites.fs" />
+    <Compile Include="WebApps.fs" />
     <None Include="paket.references" />
   </ItemGroup>
   <ItemGroup>

@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
 VisualStudioVersion = 14.0.25420.1
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Fake.Azure.WebSites", "src\Fake.Azure.WebSites\Fake.Azure.WebSites.fsproj", "{D683A57B-A955-4307-8319-8DAE6E710825}"
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Fake.Azure.WebApps", "src\Fake.Azure.WebApps\Fake.Azure.WebApps.fsproj", "{D683A57B-A955-4307-8319-8DAE6E710825}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "misc", "misc", "{8839CD03-8473-41F2-9CB1-6097F6B08D7A}"
 	ProjectSection(SolutionItems) = preProject
@@ -13,7 +13,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "misc", "misc", "{8839CD03-8
 		build.cmd = build.cmd
 		build.fsx = build.fsx
 		CHANGELOG.md = CHANGELOG.md
-		Fake.Azure.WebSites.nuspec = Fake.Azure.WebSites.nuspec
+		Fake.Azure.WebApps.nuspec = Fake.Azure.WebApps.nuspec
 		paket.dependencies = paket.dependencies
 		README.md = README.md
 	EndProjectSection

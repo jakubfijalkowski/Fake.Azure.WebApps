@@ -1,4 +1,4 @@
-﻿module Fake.Azure.WebSites
+﻿module Fake.Azure.WebApps
 
 open System
 open System.Text
@@ -17,20 +17,25 @@ let private siteAddress : Printf.StringFormat<_> = "https://%s.azurewebsites.net
 type private AzureTokenResponse = JsonProvider<"""{"token_type":"","expires_in":"","ext_expires_in":"","expires_on":"","not_before":"","resource":"","access_token":""}""">
 type private AzurePublishXmlResponse = XmlProvider<"""<publishData><publishProfile publishMethod="" userName="" userPWD="" /><publishProfile publishMethod="" userName="" userPWD="" /></publishData>""">
 
-type AzureWebSiteSettings = {
+type AzureWebAppSettings = {
     TenantId       : string
     ClientId       : string
     ClientSecret   : string
     SubscriptionId : string
     ResourceGroup  : string
-    WebSiteName    : string
+    WebAppName     : string
     DeployPath     : string
 }
 
-type AzureWebSiteCredentials = {
+type AzureWebAppCredentials = {
     AccessToken    : string
     DeployUserName : string
     DeployPassword : string
+}
+
+type AzureConfiguration = {
+    Settings    : AzureWebAppSettings
+    Credentials : AzureWebAppCredentials
 }
 
 let private makeBearerHeader = (+) "Bearer " >> HttpRequestHeaders.Authorization
@@ -42,7 +47,7 @@ let private makeBasicAuthHeader cred =
     |> HttpRequestHeaders.Authorization
 
 let private getSiteStatus settings =
-    let url = sprintf siteAddress settings.WebSiteName
+    let url = sprintf siteAddress settings.WebAppName
     Http.Request(url, silentHttpErrors = true) |> fun r -> r.StatusCode
 
 let private makeEmptyRequest url httpMethod credentials =
@@ -51,11 +56,11 @@ let private makeEmptyRequest url httpMethod credentials =
     then Http.RequestString (url, httpMethod = httpMethod, headers = headers)
     else Http.RequestString (url, httpMethod = httpMethod, headers = headers, body = BinaryUpload [||])
 
-let private callWebsiteEndpoint settings credentials httpMethod action =
-    traceVerbose <| "Calling WebSite action " + action
-    let url = sprintf siteEndpoint settings.SubscriptionId settings.ResourceGroup settings.WebSiteName action
+let private callWebAppEndpoint settings credentials httpMethod action =
+    traceVerbose <| "Calling WebApp action " + action
+    let url = sprintf siteEndpoint settings.SubscriptionId settings.ResourceGroup settings.WebAppName action
     let response = makeEmptyRequest url httpMethod credentials
-    traceVerbose <| sprintf "Action %s on WebSite %s finished successfully" action settings.WebSiteName
+    traceVerbose <| sprintf "Action %s on WebApp %s finished successfully" action settings.WebAppName
     response
 
 let private acquireAccessToken settings =
@@ -74,7 +79,7 @@ let private acquireAccessToken settings =
 
 let private acquireDeploymentCredentials settings credentials =
     let response =
-        callWebsiteEndpoint settings credentials HttpMethod.Post "publishxml"
+        callWebAppEndpoint settings credentials HttpMethod.Post "publishxml"
         |> AzurePublishXmlResponse.Parse
     let pubMethod =
         response.PublishProfiles
@@ -84,7 +89,7 @@ let private acquireDeploymentCredentials settings credentials =
         DeployUserName = pubMethod.UserName.Substring(idx + 1)
         DeployPassword = pubMethod.UserPwd }
 
-/// Reads WebSite configuration from the environment, allowing to change every parameter.
+/// Reads WebApp configuration from the environment, allowing to change every parameter.
 /// All parameters except `DeployPath` are required, but `DeployPath` must not be `null`.
 ///
 /// ## Environment variables
@@ -94,7 +99,7 @@ let private acquireDeploymentCredentials settings credentials =
 ///  - `ClientSecret` - `AZURE_CLIENT_SECRET`
 ///  - `SubscriptionId` - `AZURE_SUBSCRIPTION_ID`
 ///  - `ResourceGroup` - `AZURE_RESOURCE_GROUP`
-///  - `WebSiteName` - `AZURE_WEBSITE`
+///  - `WebAppName` - `AZURE_WEBAPP`
 ///
 /// ## Parameters
 ///
@@ -106,114 +111,121 @@ let readSiteSettingsFromEnv setParams =
         if String.IsNullOrWhiteSpace s.ClientSecret   then failwith "You must specify client secret"
         if String.IsNullOrWhiteSpace s.SubscriptionId then failwith "You must specify subscription id"
         if String.IsNullOrWhiteSpace s.ResourceGroup  then failwith "You must specify resource group"
-        if String.IsNullOrWhiteSpace s.WebSiteName    then failwith "You must specify WebSite name"
+        if String.IsNullOrWhiteSpace s.WebAppName    then failwith "You must specify WebApp name"
         s
     { TenantId       = environVarOrDefault "AZURE_TENANT_ID"       ""
       ClientId       = environVarOrDefault "AZURE_CLIENT_ID"       ""
       ClientSecret   = environVarOrDefault "AZURE_CLIENT_SECRET"   ""
       SubscriptionId = environVarOrDefault "AZURE_SUBSCRIPTION_ID" ""
       ResourceGroup  = environVarOrDefault "AZURE_RESOURCE_GROUP"  ""
-      WebSiteName    = environVarOrDefault "AZURE_WEBSITE"         ""
+      WebAppName    = environVarOrDefault "AZURE_WEBAPP"         ""
       DeployPath     = "" }
     |> setParams |> validate
 
-/// Acquires access token for the service principal and deployment credentials for the WebSite.
+/// Acquires access token for the service principal and deployment credentials for the WebApp.
 ///
 /// ## Parameters
 ///
-///  - `settings` - WebSite settings with service principal credentials.
+///  - `settings` - WebApp settings with service principal credentials.
 ///
 let acquireCredentials settings =
-    traceStartTask "Azure.WebSites.AcquireCredentials" (sprintf "WebSite: %s" settings.WebSiteName)
+    traceStartTask "Azure.WebApps.AcquireCredentials" (sprintf "WebApp: %s" settings.WebAppName)
     try
-        acquireAccessToken settings |> acquireDeploymentCredentials settings
+        let credentials = acquireAccessToken settings |> acquireDeploymentCredentials settings
+        { Settings = settings; Credentials = credentials }
     finally
-        traceEndTask "Azure.WebSites.AcquireCredentials" ""
+        traceEndTask "Azure.WebApps.AcquireCredentials" ""
 
-/// Starts the WebSite using ARM.
+/// Starts the WebApp using ARM.
 ///
 /// ## Parameters
 ///
-///  - `settings` - WebSite settings.
-///  - `credentials` - Azure and WebSite credentials acquired with `acquireCredentials`.
+///  - `config` - WebApp configuration.
 ///
-let startWebSite settings credentials =
-    traceStartTask "Azure.Website.Start" (sprintf "WebSite: %s" settings.WebSiteName)
+let startWebApp config =
+    let settings = config.Settings
+    let credentials = config.Credentials
+    traceStartTask "Azure.WebApp.Start" (sprintf "WebApp: %s" settings.WebAppName)
     try
-        callWebsiteEndpoint settings credentials HttpMethod.Post "start" |> ignore
+        callWebAppEndpoint settings credentials HttpMethod.Post "start" |> ignore
     finally
-        traceEndTask "Azure.WebSites.Start" ""
+        traceEndTask "Azure.WebApps.Start" ""
 
-/// Stops the WebSite using ARM.
+/// Stops the WebApp using ARM.
 ///
 /// ## Parameters
 ///
-///  - `settings` - WebSite settings.
-///  - `credentials` - Azure and WebSite credentials acquired with `acquireCredentials`.
+///  - `config` - WebApp configuration.
 ///
-let stopWebSite settings credentials =
-    traceStartTask "Azure.WebSites.Start" (sprintf "WebSite: %s" settings.WebSiteName)
+let stopWebApp config =
+    let settings = config.Settings
+    let credentials = config.Credentials
+    traceStartTask "Azure.WebApps.Start" (sprintf "WebApp: %s" settings.WebAppName)
     try
-        callWebsiteEndpoint settings credentials HttpMethod.Post "stop" |> ignore
+        callWebAppEndpoint settings credentials HttpMethod.Post "stop" |> ignore
     finally
-        traceEndTask "Azure.WebSites.Start" ""
+        traceEndTask "Azure.WebApps.Start" ""
 
 /// Waits until the site is stopped (i.e. returns `503 Unavailable` status code).
 ///
-/// This function repeatedly calls the root of the website, waiting one second between requests.
+/// This function repeatedly calls the root of the WebApp, waiting one second between requests.
 ///
 /// ## Parameters
 ///
-///  - `settings` - WebSite settings.
+///  - `config` - WebApp configuration.
 ///
-let rec ensureWebsiteIsStopped settings =
+let rec ensureWebAppIsStopped config =
+    let settings = config.Settings
     let response = getSiteStatus settings
     if response <> 503 then
         traceVerbose "Site is still running, waiting..."
         System.Threading.Thread.Sleep 1000
-        ensureWebsiteIsStopped settings
+        ensureWebAppIsStopped config
     else
         traceVerbose "Site has stopped"
 
-/// Stops the WebSite using ARM and waits until the site is really stopped (IIS is not running).
+/// Stops the WebApp using ARM and waits until the site is really stopped (IIS is not running).
 ///
-/// Uses `ensureWebsiteIsStopped`.
+/// Uses `ensureWebAppIsStopped`.
 ///
 /// ## Parameters
 ///
-///  - `settings` - WebSite settings.
-///  - `credentials` - Azure and WebSite credentials acquired with `acquireCredentials`.
+///  - `config` - WebApp configuration.
 ///
-let stopWebSiteAndWait settings credentials =
-    traceStartTask "Azure.WebSites.Start" (sprintf "WebSite: %s" settings.WebSiteName)
+let stopWebAppAndWait config =
+    let settings = config.Settings
+    let credentials = config.Credentials
+    traceStartTask "Azure.WebApps.Start" (sprintf "WebApp: %s" settings.WebAppName)
     try
-        callWebsiteEndpoint settings credentials HttpMethod.Post "stop" |> ignore
-        ensureWebsiteIsStopped settings
+        callWebAppEndpoint settings credentials HttpMethod.Post "stop" |> ignore
+        ensureWebAppIsStopped config
     finally
-        traceEndTask "Azure.WebSites.Start" ""
+        traceEndTask "Azure.WebApps.Start" ""
 
 /// Pushes the ZIP to Kudu's ZIP Controller and extracts it to specified path (`DeployPath`).
 ///
-/// The WebSite should be stopped before performing this action, but this is not required. When performing on a live
+/// The WebApp should be stopped before performing this action, but this is not required. When performing on a live
 /// machine, be prepared for receiving `500 Internal Server Error` from the endpoint saying that some file is locked.
 ///
 /// ## Parameters
 ///
-///  - `settings` - WebSite settings.
-///  - `credentials` - Azure and WebSite credentials acquired with `acquireCredentials`.
+///  - `config` - WebApp configuration.
 ///  - `file` - Path to the ZIP file that will be sent.
-let pushZipFile settings credentials file =
-    traceStartTask "Azure.WebSites.Upload" (sprintf "WebSite: %s, File: %s" settings.WebSiteName file)
+///
+let pushZipFile config file =
+    let settings = config.Settings
+    let credentials = config.Credentials
+    traceStartTask "Azure.WebApps.Upload" (sprintf "WebApp: %s, File: %s" settings.WebAppName file)
     try
-        let url = sprintf zipEndpoint settings.WebSiteName settings.DeployPath
+        let url = sprintf zipEndpoint settings.WebAppName settings.DeployPath
         traceVerbose <| sprintf "Reading ZIP %s" file
         let content = File.ReadAllBytes file
-        traceVerbose <| sprintf "Uploading ZIP %s to the WebSite %s/%s" file settings.WebSiteName settings.DeployPath
+        traceVerbose <| sprintf "Uploading ZIP %s to the WebApp %s/%s" file settings.WebAppName settings.DeployPath
         Http.Request
             (url,
              httpMethod = HttpMethod.Put,
              headers = [makeBasicAuthHeader credentials],
              body = BinaryUpload content) |> ignore
-        traceVerbose <| sprintf "ZIP %s uploaded successfully to the website %s" file settings.WebSiteName
+        traceVerbose <| sprintf "ZIP %s uploaded successfully to the WebApp %s" file settings.WebAppName
     finally
-        traceEndTask "Azure.WebSites.Upload" ""
+        traceEndTask "Azure.WebApps.Upload" ""
