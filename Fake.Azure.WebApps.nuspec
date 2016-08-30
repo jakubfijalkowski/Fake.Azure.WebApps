@@ -8,9 +8,10 @@
     <language>en-US</language>
     <summary>@summary@</summary>
     <projectUrl>https://github.com/jakubfijalkowski/Fake.Azure.WebApps</projectUrl>
-    <licenseUrl>https://github.com/jakubfijalkowski/Fake.Azure.WebApps/blob/master/License.txt</licenseUrl>
+    <licenseUrl>https://github.com/jakubfijalkowski/Fake.Azure.WebApps/blob/master/LICENSE.txt</licenseUrl>
     <releaseNotes>@releaseNotes@</releaseNotes>
     <tags>build, fake, f#, azure</tags>
     @dependencies@
   </metadata>
+  @files@
 </package>
