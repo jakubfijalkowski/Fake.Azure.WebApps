@@ -3,6 +3,7 @@
 open System
 open System.Text
 open System.IO
+open System.Net
 open FSharp.Data
 open Fake
 
@@ -48,8 +49,17 @@ let private makeBasicAuthHeader cred =
 
 let private getSiteStatus settings =
     let url = sprintf siteAddress settings.WebAppName
-    Http.Request(url, httpMethod = HttpMethod.Head, silentHttpErrors = true)
-    |> fun r -> r.StatusCode
+    let request = HttpWebRequest.CreateHttp(url)
+    request.Method <- "HEAD"
+    let response =
+        try
+            request.GetResponse() :?> HttpWebResponse
+        with
+            | :? WebException as ex ->
+                match ex.Response with
+                | null -> reraise ()
+                | b    -> b :?> HttpWebResponse
+    int response.StatusCode, response.StatusDescription
 
 let private makeEmptyRequest url httpMethod credentials =
     let headers = [ makeBearerHeader credentials.AccessToken ]
@@ -89,6 +99,9 @@ let private acquireDeploymentCredentials settings credentials =
     { credentials with
         DeployUserName = pubMethod.UserName.Substring(idx + 1)
         DeployPassword = pubMethod.UserPwd }
+
+let private areEqual a b =
+    String.Equals(a, b, StringComparison.InvariantCultureIgnoreCase)
 
 /// Reads WebApp configuration from the environment, allowing to change every parameter.
 /// All parameters except `DeployPath` are required, but `DeployPath` must not be `null`.
@@ -177,13 +190,13 @@ let stopWebApp config =
 ///
 let rec ensureWebAppIsStopped config =
     let settings = config.Settings
-    let response = getSiteStatus settings
-    if response <> 503 then
+    let statusCode, statusDescription = getSiteStatus settings
+    if statusCode = 403 && areEqual statusDescription "Site disabled" then
+        traceVerbose "Site has stopped"
+    else
         traceVerbose "Site is still running, waiting..."
         System.Threading.Thread.Sleep 1000
         ensureWebAppIsStopped config
-    else
-        traceVerbose "Site has stopped"
 
 /// Stops the WebApp using ARM and waits until the site is really stopped (IIS is not running).
 ///
