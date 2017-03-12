@@ -47,7 +47,7 @@ Target "Build" (fun () ->
 
     // Running NPM, Bower, Gulp...
     trace "Building..."
-    DotNetCli.Build (fun c -> { c with Configuration = currentConfig }) [projectDir]
+    DotNetCli.Build (fun c -> { c with Configuration = currentConfig; Project = projectDir })
 )
 
 Target "Publish" (fun () ->

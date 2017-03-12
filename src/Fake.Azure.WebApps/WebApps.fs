@@ -149,12 +149,10 @@ let readSiteSettingsFromEnv setParams =
 ///  - `settings` - WebApp settings with service principal credentials.
 ///
 let acquireCredentials settings =
-    traceStartTask "Azure.WebApps.AcquireCredentials" (sprintf "WebApp: %s" settings.WebAppName)
-    try
-        let credentials = acquireAccessToken settings |> acquireDeploymentCredentials settings
-        { Settings = settings; Credentials = credentials }
-    finally
-        traceEndTask "Azure.WebApps.AcquireCredentials" ""
+    use __ = traceStartTaskUsing "Azure.WebApps.AcquireCredentials" (sprintf "WebApp: %s" settings.WebAppName)
+
+    let credentials = acquireAccessToken settings |> acquireDeploymentCredentials settings
+    { Settings = settings; Credentials = credentials }
 
 /// Starts the WebApp using ARM.
 ///
@@ -165,11 +163,9 @@ let acquireCredentials settings =
 let startWebApp config =
     let settings = config.Settings
     let credentials = config.Credentials
-    traceStartTask "Azure.WebApp.Start" (sprintf "WebApp: %s" settings.WebAppName)
-    try
-        callWebAppEndpoint settings credentials HttpMethod.Post "start" |> ignore
-    finally
-        traceEndTask "Azure.WebApps.Start" ""
+
+    use __ = traceStartTaskUsing "Azure.WebApp.Start" (sprintf "WebApp: %s" settings.WebAppName)
+    callWebAppEndpoint settings credentials HttpMethod.Post "start" |> ignore
 
 /// Stops the WebApp using ARM.
 ///
@@ -180,11 +176,9 @@ let startWebApp config =
 let stopWebApp config =
     let settings = config.Settings
     let credentials = config.Credentials
-    traceStartTask "Azure.WebApps.Start" (sprintf "WebApp: %s" settings.WebAppName)
-    try
-        callWebAppEndpoint settings credentials HttpMethod.Post "stop" |> ignore
-    finally
-        traceEndTask "Azure.WebApps.Start" ""
+
+    use __ = traceStartTaskUsing "Azure.WebApps.Start" (sprintf "WebApp: %s" settings.WebAppName)
+    callWebAppEndpoint settings credentials HttpMethod.Post "stop" |> ignore
 
 /// Pushes the ZIP to Kudu's ZIP Controller and extracts it to specified path (`DeployPath`).
 ///
@@ -199,20 +193,17 @@ let stopWebApp config =
 let pushZipFile config file =
     let settings = config.Settings
     let credentials = config.Credentials
-    traceStartTask "Azure.WebApps.Upload" (sprintf "WebApp: %s, File: %s" settings.WebAppName file)
-    try
-        let url = sprintf scmEndpoint settings.WebAppName ("zip/" + settings.DeployPath)
-        traceVerbose <| sprintf "Reading ZIP %s" file
-        let content = File.ReadAllBytes file
-        traceVerbose <| sprintf "Uploading ZIP %s to the WebApp %s/%s" file settings.WebAppName settings.DeployPath
-        Http.Request
-            (url,
-             httpMethod = HttpMethod.Put,
-             headers = [makeBasicAuthHeader credentials],
-             body = BinaryUpload content) |> ignore
-        traceVerbose <| sprintf "ZIP %s uploaded successfully to the WebApp %s" file settings.WebAppName
-    finally
-        traceEndTask "Azure.WebApps.Upload" ""
+    use __ = traceStartTaskUsing "Azure.WebApps.Upload" (sprintf "WebApp: %s, File: %s" settings.WebAppName file)
+    let url = sprintf scmEndpoint settings.WebAppName ("zip/" + settings.DeployPath)
+    traceVerbose <| sprintf "Reading ZIP %s" file
+    let content = File.ReadAllBytes file
+    traceVerbose <| sprintf "Uploading ZIP %s to the WebApp %s/%s" file settings.WebAppName settings.DeployPath
+    Http.Request
+        (url,
+            httpMethod = HttpMethod.Put,
+            headers = [makeBasicAuthHeader credentials],
+            body = BinaryUpload content) |> ignore
+    traceVerbose <| sprintf "ZIP %s uploaded successfully to the WebApp %s" file settings.WebAppName
 
 /// Executes arbitrary command using Kudu's API.
 ///
@@ -225,25 +216,22 @@ let pushZipFile config file =
 let executeCommand config cmd dir =
     let settings = config.Settings
     let credentials = config.Credentials
-    traceStartTask "Azure.WebApps.Command" (sprintf "WebApp: %s, Command: %s" settings.WebAppName cmd)
-    try
-        let url = sprintf scmEndpoint settings.WebAppName "command"
-        let content =
-            JsonValue.Record
-                [| "command", JsonValue.String cmd
-                   "dir", JsonValue.String dir |]
-        let response =
-            Http.RequestString
-                (url,
-                 httpMethod = HttpMethod.Post,
-                 headers =
+    use __ = traceStartTaskUsing "Azure.WebApps.Command" (sprintf "WebApp: %s, Command: %s" settings.WebAppName cmd)
+    let url = sprintf scmEndpoint settings.WebAppName "command"
+    let content =
+        JsonValue.Record
+            [| "command", JsonValue.String cmd
+               "dir", JsonValue.String dir |]
+    let response =
+        Http.RequestString
+            (url,
+                httpMethod = HttpMethod.Post,
+                headers =
                     [ makeBasicAuthHeader credentials
                       HttpRequestHeaders.ContentType HttpContentTypes.Json ],
-                 body = TextRequest (content.ToString()))
-        let parsed = response |> CommandResponse.Parse
-        { Output = parsed.Output; Error = parsed.Error; ExitCode = parsed.ExitCode }
-    finally
-        traceEndTask "Azure.WebApps.Command" ""
+                body = TextRequest (content.ToString()))
+    let parsed = response |> CommandResponse.Parse
+    { Output = parsed.Output; Error = parsed.Error; ExitCode = parsed.ExitCode }
 
 /// Checks if the site responds with `403 Site disabled` status.
 ///
@@ -309,12 +297,7 @@ let ensureDotNetCoreAppIsStopped config =
 let stopDotNetCoreAppAndWait config =
     let settings = config.Settings
     let credentials = config.Credentials
-    traceStartTask "Azure.WebApps.Start" (sprintf "WebApp: %s" settings.WebAppName)
-    try
-        callWebAppEndpoint settings credentials HttpMethod.Post "stop" |> ignore
-        ensureDotNetCoreAppIsStopped config
-    finally
-        traceEndTask "Azure.WebApps.Start" ""
+    use __ = traceStartTaskUsing "Azure.WebApps.Start" (sprintf "WebApp: %s" settings.WebAppName)
+    callWebAppEndpoint settings credentials HttpMethod.Post "stop" |> ignore
+    ensureDotNetCoreAppIsStopped config
 
-[<Obsolete("Use stopDotNetCoreAppAndWait instead")>]
-let stopWebAppAndWait = stopDotNetCoreAppAndWait
