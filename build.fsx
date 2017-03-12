@@ -15,10 +15,6 @@ let buildDir = rootDir @@ "build"
 let projectDir = srcDir @@ projectName
 let projectBuildOutput = projectDir @@ "bin/Release"
 
-let nugetDir = rootDir @@ "nuget"
-let nugetLibDir = nugetDir @@ "lib"
-let nugetLib451Dir = nugetLibDir @@ "net451"
-
 let release = LoadReleaseNotes "CHANGELOG.md"
 
 let authors = [ "Jakub Fijałkowski" ]
@@ -32,7 +28,6 @@ let flip f a b = f b a
 Target "Clean" (fun () ->
     CleanDirs
         [ buildDir
-          nugetDir
           projectDir @@ "bin"
           projectDir @@ "obj"]
 )
@@ -53,11 +48,6 @@ Target "Build" (fun () ->
     MSBuildRelease buildDir "Build" [ projectName + ".sln" ] |> Log "AppBuild-Output:"
 )
 
-Target "CopyToOutput" (fun () ->
-    CopyTo nugetLib451Dir [ buildDir @@ (projectName + ".dll") ]
-    CopyTo nugetDir additionalFiles
-)
-
 Target "CreateNuGet" (fun () ->
     let nuspecFile = projectName + ".nuspec"
     let deps = GetDependenciesForReferencesFile (projectDir @@ "paket.references") |> Array.toList
@@ -68,15 +58,16 @@ Target "CreateNuGet" (fun () ->
             Summary = "Simple FAKE helper that makes deploying Azure WebApps a breeze"
             Description = "This package provides FAKE helpers that allows to reliably publish your app to Azure WebApps using just a FAKE scripts."
             Version = release.NugetVersion
-            OutputPath = nugetDir
-            WorkingDir = nugetDir
+            OutputPath = buildDir
+            WorkingDir = rootDir
             ReleaseNotes = release.Notes |> toLines
             Publish = false
-            Dependencies = deps })
+            Dependencies = deps
+            Files = [ (@"build/Fake.Azure.WebApps.dll", Some "lib/net451", None) ] })
 )
 
 Target "PublishNuGet" (fun () ->
-    Paket.Push (fun p -> { p with WorkingDir = nugetDir })
+    Paket.Push (fun p -> { p with WorkingDir = buildDir })
 )
 
 Target "Release" (fun () ->
@@ -96,7 +87,6 @@ Target "Default" DoNothing
     ==> "SetAssemblyInfo"
     ==> "Build"
     ==> "Default"
-    ==> "CopyToOutput"
     ==> "CreateNuGet"
     ==> "PublishNuGet"
     ==> "Release"
