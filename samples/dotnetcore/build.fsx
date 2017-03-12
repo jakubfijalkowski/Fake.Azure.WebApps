@@ -29,7 +29,8 @@ let loadWebAppSettings () =
             SubscriptionId = ""
             ResourceGroup  = ""
             WebAppName     = ""
-            DeployPath     = "" })
+            // This is the default path to the site, you can configure this on the Application Settings blade
+            DeployPath     = "site/wwwroot" })
 
 Target "Clean" (fun () ->
     !! (projectDir @@ "bin")
@@ -42,7 +43,7 @@ Target "Clean" (fun () ->
 
 Target "Build" (fun () ->
     trace "Restoring packages..."
-    DotNetCli.Restore (fun c -> { c with WorkingDir = baseDir })
+    DotNetCli.Restore (fun c -> { c with WorkingDir = projectDir })
 
     // Running NPM, Bower, Gulp...
     trace "Building..."
