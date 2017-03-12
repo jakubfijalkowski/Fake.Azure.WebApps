@@ -12,11 +12,12 @@ let private AzurePublishProfile = "FTP"
 
 let private tokenEndpoint : Printf.StringFormat<_> = "https://login.microsoftonline.com/%s/oauth2/token"
 let private siteEndpoint : Printf.StringFormat<_> = "https://management.azure.com/subscriptions/%s/resourcegroups/%s/providers/Microsoft.Web/sites/%s/%s?api-version=2016-03-01"
-let private zipEndpoint : Printf.StringFormat<_> = "https://%s.scm.azurewebsites.net/api/zip/%s"
+let private scmEndpoint : Printf.StringFormat<_> = "https://%s.scm.azurewebsites.net/api/%s"
 let private siteAddress : Printf.StringFormat<_> = "https://%s.azurewebsites.net"
 
 type private AzureTokenResponse = JsonProvider<"""{"token_type":"","expires_in":"","ext_expires_in":"","expires_on":"","not_before":"","resource":"","access_token":""}""">
 type private AzurePublishXmlResponse = XmlProvider<"""<publishData><publishProfile publishMethod="" userName="" userPWD="" /><publishProfile publishMethod="" userName="" userPWD="" /></publishData>""">
+type private CommandResponse = JsonProvider<"""{"Output":"test","Error":"test","ExitCode":0}""">
 
 type AzureWebAppSettings = {
     TenantId       : string
@@ -39,6 +40,11 @@ type AzureConfiguration = {
     Credentials : AzureWebAppCredentials
 }
 
+type CommandExecResult = {
+    Output   : string
+    Error    : string
+    ExitCode : int
+}
 let private makeBearerHeader = (+) "Bearer " >> HttpRequestHeaders.Authorization
 let private makeBasicAuthHeader cred =
     sprintf "%s:%s" cred.DeployUserName cred.DeployPassword
@@ -180,42 +186,6 @@ let stopWebApp config =
     finally
         traceEndTask "Azure.WebApps.Start" ""
 
-/// Waits until the site is stopped (i.e. returns `503 Unavailable` status code).
-///
-/// This function repeatedly calls the root of the WebApp, waiting one second between requests.
-///
-/// ## Parameters
-///
-///  - `config` - WebApp configuration.
-///
-let rec ensureWebAppIsStopped config =
-    let settings = config.Settings
-    let statusCode, statusDescription = getSiteStatus settings
-    if statusCode = 403 && areEqual statusDescription "Site disabled" then
-        traceVerbose "Site has stopped"
-    else
-        traceVerbose "Site is still running, waiting..."
-        System.Threading.Thread.Sleep 1000
-        ensureWebAppIsStopped config
-
-/// Stops the WebApp using ARM and waits until the site is really stopped (IIS is not running).
-///
-/// Uses `ensureWebAppIsStopped`.
-///
-/// ## Parameters
-///
-///  - `config` - WebApp configuration.
-///
-let stopWebAppAndWait config =
-    let settings = config.Settings
-    let credentials = config.Credentials
-    traceStartTask "Azure.WebApps.Start" (sprintf "WebApp: %s" settings.WebAppName)
-    try
-        callWebAppEndpoint settings credentials HttpMethod.Post "stop" |> ignore
-        ensureWebAppIsStopped config
-    finally
-        traceEndTask "Azure.WebApps.Start" ""
-
 /// Pushes the ZIP to Kudu's ZIP Controller and extracts it to specified path (`DeployPath`).
 ///
 /// The WebApp should be stopped before performing this action, but this is not required. When performing on a live
@@ -231,7 +201,7 @@ let pushZipFile config file =
     let credentials = config.Credentials
     traceStartTask "Azure.WebApps.Upload" (sprintf "WebApp: %s, File: %s" settings.WebAppName file)
     try
-        let url = sprintf zipEndpoint settings.WebAppName settings.DeployPath
+        let url = sprintf scmEndpoint settings.WebAppName ("zip/" + settings.DeployPath)
         traceVerbose <| sprintf "Reading ZIP %s" file
         let content = File.ReadAllBytes file
         traceVerbose <| sprintf "Uploading ZIP %s to the WebApp %s/%s" file settings.WebAppName settings.DeployPath
@@ -243,3 +213,108 @@ let pushZipFile config file =
         traceVerbose <| sprintf "ZIP %s uploaded successfully to the WebApp %s" file settings.WebAppName
     finally
         traceEndTask "Azure.WebApps.Upload" ""
+
+/// Executes arbitrary command using Kudu's API.
+///
+/// ### Parameters
+///
+///  - `config` - WebApp configuration.
+///  - `cmd` - The command to execute. Do not assume the shell as it may change. Run the shell explicitly.
+///  - `dir` - The directory where the command should be executed.
+///
+let executeCommand config cmd dir =
+    let settings = config.Settings
+    let credentials = config.Credentials
+    traceStartTask "Azure.WebApps.Command" (sprintf "WebApp: %s, Command: %s" settings.WebAppName cmd)
+    try
+        let url = sprintf scmEndpoint settings.WebAppName "command"
+        let content =
+            JsonValue.Record
+                [| "command", JsonValue.String cmd
+                   "dir", JsonValue.String dir |]
+        let response =
+            Http.RequestString
+                (url,
+                 httpMethod = HttpMethod.Post,
+                 headers =
+                    [ makeBasicAuthHeader credentials
+                      HttpRequestHeaders.ContentType HttpContentTypes.Json ],
+                 body = TextRequest (content.ToString()))
+        let parsed = response |> CommandResponse.Parse
+        { Output = parsed.Output; Error = parsed.Error; ExitCode = parsed.ExitCode }
+    finally
+        traceEndTask "Azure.WebApps.Command" ""
+
+/// Checks if the site responds with `403 Site disabled` status.
+///
+/// ## Parameters
+///
+///  - `config` - WebApp configuration.
+///
+let ensureWebAppRespondsWith403 config =
+    let settings = config.Settings
+    let statusCode, statusDescription = getSiteStatus settings
+    statusCode = 403 && areEqual statusDescription "Site disabled"
+
+/// Checks if the `dotnet` process is not running.
+///
+/// ## Parameters
+///
+///  - `config` - WebApp configuration.
+///
+let ensureDotNetIsNotRunning config =
+    let result = executeCommand config "powershell -NoProfile -Command \"Get-Process -Name 'dotnet'\"" ""
+    result.ExitCode <> 0
+
+/// Waits until the site is stopped (i.e. all the conditions are true).
+///
+/// This function repeatedly calls the root of the WebApp, waiting one second between requests.
+///
+/// ## Parameters
+///
+///  - `config` - WebApp configuration.
+///
+let rec ensureWebAppIsStopped config conds =
+    let settings = config.Settings
+    let result = conds |> Seq.fold (fun o f -> o && f config) true
+    if result then
+        traceVerbose "Site has stopped"
+    else
+        traceVerbose "Site is still running, waiting..."
+        System.Threading.Thread.Sleep 1000
+        ensureWebAppIsStopped config conds
+
+/// Waits until the .NET Core application running on the WebApp is stopped. Uses
+/// `ensureWebAppRespondsWith403` and `ensureDotNetIsNotRunning`).
+///
+/// This function repeatedly calls the root of the WebApp, waiting one second between requests.
+///
+/// ## Parameters
+///
+///  - `config` - WebApp configuration.
+///
+let ensureDotNetCoreAppIsStopped config =
+    ensureWebAppIsStopped config
+        [ ensureWebAppRespondsWith403
+          ensureDotNetIsNotRunning ]
+
+/// Stops the WebApp using ARM and waits until the site is really stopped (IIS is not running).
+///
+/// Uses `ensureWebAppIsStopped`.
+///
+/// ## Parameters
+///
+///  - `config` - WebApp configuration.
+///
+let stopDotNetCoreAppAndWait config =
+    let settings = config.Settings
+    let credentials = config.Credentials
+    traceStartTask "Azure.WebApps.Start" (sprintf "WebApp: %s" settings.WebAppName)
+    try
+        callWebAppEndpoint settings credentials HttpMethod.Post "stop" |> ignore
+        ensureDotNetCoreAppIsStopped config
+    finally
+        traceEndTask "Azure.WebApps.Start" ""
+
+[<Obsolete("Use stopDotNetCoreAppAndWait instead")>]
+let stopWebAppAndWait = stopDotNetCoreAppAndWait

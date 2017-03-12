@@ -61,7 +61,7 @@ Target "Upload" (fun () ->
     let settings = loadWebAppSettings ()
     let config = Azure.WebApps.acquireCredentials settings
 
-    Azure.WebApps.stopWebAppAndWait config
+    Azure.WebApps.stopDotNetCoreAppAndWait config
     Azure.WebApps.pushZipFile config deployZip
     Azure.WebApps.startWebApp config
 )
