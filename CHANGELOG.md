@@ -1,3 +1,5 @@
+#### 0.4.0 - 09.06.2017
+* Add `startContinuousWebJob` and `stopContinuousWebJob`
 #### 0.3.0 - 12.03.2017
 * Remove `stopWebAppAndWait`
 * Change `ensureWebAppIsStopped` signature
