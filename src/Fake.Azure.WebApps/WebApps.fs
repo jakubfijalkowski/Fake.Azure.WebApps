@@ -1,4 +1,4 @@
-﻿module Fake.Azure.WebApps
+module Fake.Azure.WebApps
 
 open System
 open System.Text
@@ -78,6 +78,17 @@ let private callWebAppEndpoint settings credentials httpMethod action =
     let url = sprintf siteEndpoint settings.SubscriptionId settings.ResourceGroup settings.WebAppName action
     let response = makeEmptyRequest url httpMethod credentials
     traceVerbose <| sprintf "Action %s on WebApp %s finished successfully" action settings.WebAppName
+    response
+
+let private callWebAppSCMEndpoint settings credentials httpMethod action =
+    traceVerbose <| "Calling Kudu action " + action
+    let url = sprintf scmEndpoint settings.WebAppName action
+    let headers = [ makeBasicAuthHeader credentials ]
+    let response =
+        if action = HttpMethod.Get
+        then Http.RequestString (url, httpMethod = httpMethod, headers = headers)
+        else Http.RequestString (url, httpMethod = httpMethod, headers = headers, body = BinaryUpload [||])
+    traceVerbose <| sprintf "Action %s on Kudu for WebApp %s finished successfully" action settings.WebAppName
     response
 
 let private acquireAccessToken settings =
@@ -167,6 +178,20 @@ let startWebApp config =
     use __ = traceStartTaskUsing "Azure.WebApp.Start" (sprintf "WebApp: %s" settings.WebAppName)
     callWebAppEndpoint settings credentials HttpMethod.Post "start" |> ignore
 
+/// Starts continuous WebJob in selected app using Kudu's API.
+///
+/// ## Parameters
+///
+///  - `config` - WebApp configuration.
+///  - `webjob` - WebJob name.
+///
+let startContinuousWebJob config webjob =
+    let settings = config.Settings
+    let credentials = config.Credentials
+
+    use __ = traceStartTaskUsing "Azure.WebApps.StartWebJob" (sprintf "WebApp: %s; WebJob: %s" settings.WebAppName webjob)
+    callWebAppSCMEndpoint settings credentials HttpMethod.Post (sprintf "continuouswebjobs/%s/start" webjob) |> ignore
+
 /// Stops the WebApp using ARM.
 ///
 /// ## Parameters
@@ -177,8 +202,22 @@ let stopWebApp config =
     let settings = config.Settings
     let credentials = config.Credentials
 
-    use __ = traceStartTaskUsing "Azure.WebApps.Start" (sprintf "WebApp: %s" settings.WebAppName)
+    use __ = traceStartTaskUsing "Azure.WebApps.Stop" (sprintf "WebApp: %s" settings.WebAppName)
     callWebAppEndpoint settings credentials HttpMethod.Post "stop" |> ignore
+
+/// Stops continuous WebJob in selected app using Kudu's API.
+///
+/// ## Parameters
+///
+///  - `config` - WebApp configuration.
+///  - `webjob` - WebJob name.
+///
+let stopContinuousWebJob config webjob =
+    let settings = config.Settings
+    let credentials = config.Credentials
+
+    use __ = traceStartTaskUsing "Azure.WebApps.StopWebJob" (sprintf "WebApp: %s; WebJob: %s" settings.WebAppName webjob)
+    callWebAppSCMEndpoint settings credentials HttpMethod.Post (sprintf "continuouswebjobs/%s/stop" webjob) |> ignore
 
 /// Pushes the ZIP to Kudu's ZIP Controller and extracts it to specified path (`DeployPath`).
 ///

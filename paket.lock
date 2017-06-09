@@ -1,8 +1,8 @@
 CONTENT: NONE
 NUGET
   remote: https://www.nuget.org/api/v2
-    FAKE.Lib (4.53)
-    FSharp.Data (2.3.2)
+    FAKE.Lib (4.61.3)
+    FSharp.Data (2.3.3)
       Zlib.Portable (>= 1.11) - framework: >= netstandard11, portable-net45+sl5+win8, portable-net45+win8, portable-net45+win8+wp8+wpa81
     Zlib.Portable (1.11) - framework: >= netstandard11, portable-net45+sl5+win8, portable-net45+win8, portable-net45+win8+wp8+wpa81
 
@@ -10,5 +10,5 @@ GROUP Build
 CONTENT: NONE
 NUGET
   remote: http://www.nuget.org/api/v2
-    FAKE (4.53)
-    NuGet.CommandLine (3.5)
+    FAKE (4.61.3)
+    NuGet.CommandLine (4.1)
