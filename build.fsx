@@ -1,57 +1,55 @@
-#I @"packages/build/FAKE/tools/"
-#r @"FakeLib.dll"
+#r @"packages/build/FAKE/tools/FakeLib.dll"
 
-open Fake
-open Fake.Git
-open Fake.Paket
-open Fake.AssemblyInfoFile
-open Fake.ReleaseNotesHelper
+open Fake.IO
+open Fake.Core
+open Fake.Core.TargetOperators
+open Fake.DotNet
+open Fake.DotNet.NuGet
 
 let projectName = "Fake.Azure.WebApps"
+let authors = [ "Jakub Fijałkowski" ]
 
 let rootDir = "."
-let srcDir = rootDir @@ "src"
-let buildDir = rootDir @@ "build"
-let projectDir = srcDir @@ projectName
-let projectBuildOutput = projectDir @@ "bin/Release"
+let srcDir = Path.combine rootDir "src"
+let buildDir = Path.combine rootDir "build"
+let projectDir = Path.combine srcDir projectName
 
-let release = LoadReleaseNotes "CHANGELOG.md"
+let release = ReleaseNotes.LoadReleaseNotes "CHANGELOG.md"
 
-let authors = [ "Jakub Fijałkowski" ]
 let additionalFiles =
     [ "LICENSE.txt"
       "README.md"
       "CHANGELOG.md" ]
 
-let flip f a b = f b a
-
-Target "Clean" (fun () ->
-    CleanDirs
+Target.Create "Clean" (fun _ ->
+    Shell.CleanDirs
         [ buildDir
-          projectDir @@ "bin"
-          projectDir @@ "obj"]
+          Path.combine projectDir "bin"
+          Path.combine projectDir "obj"]
 )
 
-Target "SetAssemblyInfo" (fun () ->
-    let infoFile = srcDir @@ projectName @@ "AssemblyInfo.fs"
+Target.Create "SetAssemblyInfo" (fun _ ->
+    let infoFile = Path.combine projectDir "AssemblyInfo.fs"
 
-    [ Attribute.Product "FAKE - Azure WebApps helper"
-      Attribute.Version release.AssemblyVersion
-      Attribute.InformationalVersion release.AssemblyVersion
-      Attribute.FileVersion release.AssemblyVersion
-      Attribute.Title "FAKE - Azure WebApps helper"
-      Attribute.Guid "d683a57b-a955-4307-8319-8dae6e710825" ]
-    |> CreateFSharpAssemblyInfo infoFile
+    [ AssemblyInfo.Product "FAKE - Azure WebApps helper"
+      AssemblyInfo.Version release.AssemblyVersion
+      AssemblyInfo.InformationalVersion release.AssemblyVersion
+      AssemblyInfo.FileVersion release.AssemblyVersion
+      AssemblyInfo.Title "FAKE - Azure WebApps helper"
+      AssemblyInfo.Guid "d683a57b-a955-4307-8319-8dae6e710825" ]
+    |> AssemblyInfoFile.CreateFSharp infoFile
 )
 
-Target "Build" (fun () ->
-    MSBuildRelease buildDir "Build" [ projectName + ".sln" ] |> Log "AppBuild-Output:"
+Target.Create "Build" (fun _ ->
+    MsBuild.MSBuildRelease buildDir "Build" [ projectName + ".sln" ]
+    |> Trace.Log "AppBuild-Output:"
 )
 
-Target "CreateNuGet" (fun () ->
+Target.Create "CreateNuGet" (fun _ ->
     let nuspecFile = projectName + ".nuspec"
-    let deps = GetDependenciesForReferencesFile (projectDir @@ "paket.references") |> Array.toList
-    flip NuGet nuspecFile (fun s ->
+    let refFile = Path.combine projectDir "paket.references"
+    let deps = Paket.GetDependenciesForReferencesFile refFile |> Array.toList
+    NuGet.NuGet (fun s ->
         { s with
             Authors = authors
             Project = projectName
@@ -60,28 +58,18 @@ Target "CreateNuGet" (fun () ->
             Version = release.NugetVersion
             OutputPath = buildDir
             WorkingDir = rootDir
-            ReleaseNotes = release.Notes |> toLines
+            ReleaseNotes = release.Notes |> String.toLines
             Publish = false
             Dependencies = deps
             Files = [ (@"build/Fake.Azure.WebApps.dll", Some "lib/net451", None) ] })
+        nuspecFile
 )
 
-Target "PublishNuGet" (fun () ->
+Target.Create "PublishNuGet" (fun _ ->
     Paket.Push (fun p -> { p with WorkingDir = buildDir })
 )
 
-Target "Release" (fun () ->
-    let tagName = "v" + release.NugetVersion
-
-    StageAll ""
-    Commit "" <| sprintf "Bump version to %s" release.NugetVersion
-    Branches.tag "" tagName
-
-    Branches.push ""
-    Branches.pushTag "" "origin" tagName
-)
-
-Target "Default" DoNothing
+Target.Create "Default" Target.DoNothing
 
 "Clean"
     ==> "SetAssemblyInfo"
@@ -89,6 +77,5 @@ Target "Default" DoNothing
     ==> "Default"
     ==> "CreateNuGet"
     ==> "PublishNuGet"
-    ==> "Release"
 
-RunTargetOrDefault "Default"
+Target.RunOrDefault "Default"

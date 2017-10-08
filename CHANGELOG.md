@@ -1,3 +1,7 @@
+#### 0.5.0 - 08.10.2017
+* Migrate to FAKE 5
+* Fix logging
+* Update sample to .NET Core 2
 #### 0.4.0 - 09.06.2017
 * Add `startContinuousWebJob` and `stopContinuousWebJob`
 #### 0.3.0 - 12.03.2017

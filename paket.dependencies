@@ -1,7 +1,7 @@
 content: none
 source https://www.nuget.org/api/v2/
 
-nuget Fake.Lib
+nuget Fake.Lib >= 5.0.0-beta005
 nuget FSharp.Data
 
 group Build
@@ -9,5 +9,5 @@ group Build
 content: none
 source http://nuget.org/api/v2
 
-nuget FAKE
+nuget FAKE >= 5.0.0-beta005
 nuget Nuget.CommandLine

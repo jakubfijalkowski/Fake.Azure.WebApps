@@ -4,17 +4,17 @@ open System.Reflection
 open System.Runtime.InteropServices
 
 [<assembly: AssemblyProductAttribute("FAKE - Azure WebApps helper")>]
-[<assembly: AssemblyVersionAttribute("0.4.0")>]
-[<assembly: AssemblyInformationalVersionAttribute("0.4.0")>]
-[<assembly: AssemblyFileVersionAttribute("0.4.0")>]
+[<assembly: AssemblyVersionAttribute("0.5.0")>]
+[<assembly: AssemblyInformationalVersionAttribute("0.5.0")>]
+[<assembly: AssemblyFileVersionAttribute("0.5.0")>]
 [<assembly: AssemblyTitleAttribute("FAKE - Azure WebApps helper")>]
 [<assembly: GuidAttribute("d683a57b-a955-4307-8319-8dae6e710825")>]
 do ()
 
 module internal AssemblyVersionInformation =
     let [<Literal>] AssemblyProduct = "FAKE - Azure WebApps helper"
-    let [<Literal>] AssemblyVersion = "0.4.0"
-    let [<Literal>] AssemblyInformationalVersion = "0.4.0"
-    let [<Literal>] AssemblyFileVersion = "0.4.0"
+    let [<Literal>] AssemblyVersion = "0.5.0"
+    let [<Literal>] AssemblyInformationalVersion = "0.5.0"
+    let [<Literal>] AssemblyFileVersion = "0.5.0"
     let [<Literal>] AssemblyTitle = "FAKE - Azure WebApps helper"
     let [<Literal>] Guid = "d683a57b-a955-4307-8319-8dae6e710825"

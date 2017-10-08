@@ -5,7 +5,8 @@ open System.Text
 open System.IO
 open System.Net
 open FSharp.Data
-open Fake
+open Fake.Core
+open Fake.Core.Environment
 
 [<Literal>]
 let private AzurePublishProfile = "FTP"
@@ -70,37 +71,60 @@ let private getSiteStatus settings =
 let private makeEmptyRequest url httpMethod credentials =
     let headers = [ makeBearerHeader credentials.AccessToken ]
     if httpMethod = HttpMethod.Get
-    then Http.RequestString (url, httpMethod = httpMethod, headers = headers)
-    else Http.RequestString (url, httpMethod = httpMethod, headers = headers, body = BinaryUpload [||])
+    then
+        Http.RequestString (
+            url,
+            httpMethod = httpMethod,
+            headers = headers)
+    else
+        Http.RequestString (
+            url,
+            httpMethod = httpMethod,
+            headers = headers,
+            body = BinaryUpload [||])
 
 let private callWebAppEndpoint settings credentials httpMethod action =
-    traceVerbose <| "Calling WebApp action " + action
-    let url = sprintf siteEndpoint settings.SubscriptionId settings.ResourceGroup settings.WebAppName action
+    Trace.logVerbosefn "Calling WebApp action %s" action
+    let url =
+        sprintf siteEndpoint
+            settings.SubscriptionId settings.ResourceGroup
+            settings.WebAppName action
     let response = makeEmptyRequest url httpMethod credentials
-    traceVerbose <| sprintf "Action %s on WebApp %s finished successfully" action settings.WebAppName
+    Trace.logVerbosefn "Action %s on WebApp %s finished successfully" action settings.WebAppName
     response
 
 let private callWebAppSCMEndpoint settings credentials httpMethod action =
-    traceVerbose <| "Calling Kudu action " + action
+    Trace.logVerbosefn  "Calling Kudu action %s" action
     let url = sprintf scmEndpoint settings.WebAppName action
     let headers = [ makeBasicAuthHeader credentials ]
     let response =
         if action = HttpMethod.Get
-        then Http.RequestString (url, httpMethod = httpMethod, headers = headers)
-        else Http.RequestString (url, httpMethod = httpMethod, headers = headers, body = BinaryUpload [||])
-    traceVerbose <| sprintf "Action %s on Kudu for WebApp %s finished successfully" action settings.WebAppName
+        then
+            Http.RequestString (
+                url,
+                httpMethod = httpMethod,
+                headers = headers)
+        else
+            Http.RequestString (
+                url,
+                httpMethod = httpMethod,
+                headers = headers,
+                body = BinaryUpload [||])
+    Trace.logVerbosefn "Action %s on Kudu for WebApp %s finished successfully" action settings.WebAppName
     response
 
 let private acquireAccessToken settings =
     let url = sprintf tokenEndpoint settings.TenantId
     let response =
-        Http.RequestString (url, body = FormValues
-            [ "resource",      "https://management.azure.com/";
-              "grant_type",    "client_credentials";
-              "client_id",     settings.ClientId;
-              "client_secret", settings.ClientSecret ])
+        Http.RequestString (
+            url,
+            body = FormValues
+                [ "resource",      "https://management.azure.com/";
+                  "grant_type",    "client_credentials";
+                  "client_id",     settings.ClientId;
+                  "client_secret", settings.ClientSecret ])
     let json = response |> AzureTokenResponse.Parse
-    traceVerbose "Access token acquired successfully"
+    Trace.traceVerbose "Access token acquired successfully"
     { AccessToken = json.AccessToken.JsonValue.AsString ();
       DeployUserName = ""
       DeployPassword = "" }
@@ -142,14 +166,14 @@ let readSiteSettingsFromEnv setParams =
         if String.IsNullOrWhiteSpace s.ClientSecret   then failwith "You must specify client secret"
         if String.IsNullOrWhiteSpace s.SubscriptionId then failwith "You must specify subscription id"
         if String.IsNullOrWhiteSpace s.ResourceGroup  then failwith "You must specify resource group"
-        if String.IsNullOrWhiteSpace s.WebAppName    then failwith "You must specify WebApp name"
+        if String.IsNullOrWhiteSpace s.WebAppName     then failwith "You must specify WebApp name"
         s
     { TenantId       = environVarOrDefault "AZURE_TENANT_ID"       ""
       ClientId       = environVarOrDefault "AZURE_CLIENT_ID"       ""
       ClientSecret   = environVarOrDefault "AZURE_CLIENT_SECRET"   ""
       SubscriptionId = environVarOrDefault "AZURE_SUBSCRIPTION_ID" ""
       ResourceGroup  = environVarOrDefault "AZURE_RESOURCE_GROUP"  ""
-      WebAppName    = environVarOrDefault "AZURE_WEBAPP"         ""
+      WebAppName     = environVarOrDefault "AZURE_WEBAPP"         ""
       DeployPath     = "" }
     |> setParams |> validate
 
@@ -160,9 +184,10 @@ let readSiteSettingsFromEnv setParams =
 ///  - `settings` - WebApp settings with service principal credentials.
 ///
 let acquireCredentials settings =
-    use __ = traceStartTaskUsing "Azure.WebApps.AcquireCredentials" (sprintf "WebApp: %s" settings.WebAppName)
+    use __ = Trace.traceTask "Azure.WebApps.acquireCredentials" (sprintf "WebApp: %s" settings.WebAppName)
 
-    let credentials = acquireAccessToken settings |> acquireDeploymentCredentials settings
+    let credentials =
+        acquireAccessToken settings |> acquireDeploymentCredentials settings
     { Settings = settings; Credentials = credentials }
 
 /// Starts the WebApp using ARM.
@@ -174,8 +199,8 @@ let acquireCredentials settings =
 let startWebApp config =
     let settings = config.Settings
     let credentials = config.Credentials
+    use __ = Trace.traceTask "Azure.WebApp.startWebApp" (sprintf "WebApp: %s" settings.WebAppName)
 
-    use __ = traceStartTaskUsing "Azure.WebApp.Start" (sprintf "WebApp: %s" settings.WebAppName)
     callWebAppEndpoint settings credentials HttpMethod.Post "start" |> ignore
 
 /// Starts continuous WebJob in selected app using Kudu's API.
@@ -188,9 +213,14 @@ let startWebApp config =
 let startContinuousWebJob config webjob =
     let settings = config.Settings
     let credentials = config.Credentials
+    use __ = Trace.traceTask "Azure.WebApps.startContinuousWebJob" (sprintf "WebApp: %s; WebJob: %s" settings.WebAppName webjob)
 
-    use __ = traceStartTaskUsing "Azure.WebApps.StartWebJob" (sprintf "WebApp: %s; WebJob: %s" settings.WebAppName webjob)
-    callWebAppSCMEndpoint settings credentials HttpMethod.Post (sprintf "continuouswebjobs/%s/start" webjob) |> ignore
+    callWebAppSCMEndpoint
+        settings
+        credentials
+        HttpMethod.Post
+        (sprintf "continuouswebjobs/%s/start" webjob)
+    |> ignore
 
 /// Stops the WebApp using ARM.
 ///
@@ -201,8 +231,8 @@ let startContinuousWebJob config webjob =
 let stopWebApp config =
     let settings = config.Settings
     let credentials = config.Credentials
+    use __ = Trace.traceTask "Azure.WebApps.stopWebApp" (sprintf "WebApp: %s" settings.WebAppName)
 
-    use __ = traceStartTaskUsing "Azure.WebApps.Stop" (sprintf "WebApp: %s" settings.WebAppName)
     callWebAppEndpoint settings credentials HttpMethod.Post "stop" |> ignore
 
 /// Stops continuous WebJob in selected app using Kudu's API.
@@ -215,9 +245,14 @@ let stopWebApp config =
 let stopContinuousWebJob config webjob =
     let settings = config.Settings
     let credentials = config.Credentials
+    use __ = Trace.traceTask "Azure.WebApps.stopContinuousWebJob" (sprintf "WebApp: %s; WebJob: %s" settings.WebAppName webjob)
 
-    use __ = traceStartTaskUsing "Azure.WebApps.StopWebJob" (sprintf "WebApp: %s; WebJob: %s" settings.WebAppName webjob)
-    callWebAppSCMEndpoint settings credentials HttpMethod.Post (sprintf "continuouswebjobs/%s/stop" webjob) |> ignore
+    callWebAppSCMEndpoint
+        settings
+        credentials
+        HttpMethod.Post
+        (sprintf "continuouswebjobs/%s/stop" webjob)
+    |> ignore
 
 /// Pushes the ZIP to Kudu's ZIP Controller and extracts it to specified path (`DeployPath`).
 ///
@@ -232,17 +267,19 @@ let stopContinuousWebJob config webjob =
 let pushZipFile config file =
     let settings = config.Settings
     let credentials = config.Credentials
-    use __ = traceStartTaskUsing "Azure.WebApps.Upload" (sprintf "WebApp: %s, File: %s" settings.WebAppName file)
-    let url = sprintf scmEndpoint settings.WebAppName ("zip/" + settings.DeployPath)
-    traceVerbose <| sprintf "Reading ZIP %s" file
+    use __ = Trace.traceTask "Azure.WebApps.pushZipFile" (sprintf "WebApp: %s, File: %s" settings.WebAppName file)
+
+    Trace.logVerbosefn "Reading ZIP %s" file
     let content = File.ReadAllBytes file
-    traceVerbose <| sprintf "Uploading ZIP %s to the WebApp %s/%s" file settings.WebAppName settings.DeployPath
-    Http.Request
-        (url,
-            httpMethod = HttpMethod.Put,
-            headers = [makeBasicAuthHeader credentials],
-            body = BinaryUpload content) |> ignore
-    traceVerbose <| sprintf "ZIP %s uploaded successfully to the WebApp %s" file settings.WebAppName
+
+    Trace.logVerbosefn "Uploading ZIP %s to the WebApp %s/%s" file settings.WebAppName settings.DeployPath
+    Http.Request (
+        url = sprintf scmEndpoint settings.WebAppName ("zip/" + settings.DeployPath),
+        httpMethod = HttpMethod.Put,
+        headers = [makeBasicAuthHeader credentials],
+        body = BinaryUpload content) |> ignore
+
+    Trace.logVerbosefn "ZIP %s uploaded successfully to the WebApp %s" file settings.WebAppName
 
 /// Executes arbitrary command using Kudu's API.
 ///
@@ -255,20 +292,20 @@ let pushZipFile config file =
 let executeCommand config cmd dir =
     let settings = config.Settings
     let credentials = config.Credentials
-    use __ = traceStartTaskUsing "Azure.WebApps.Command" (sprintf "WebApp: %s, Command: %s" settings.WebAppName cmd)
-    let url = sprintf scmEndpoint settings.WebAppName "command"
+    use __ = Trace.traceTask "Azure.WebApps.executeCommand" (sprintf "WebApp: %s, Command: %s" settings.WebAppName cmd)
+
     let content =
         JsonValue.Record
             [| "command", JsonValue.String cmd
                "dir", JsonValue.String dir |]
     let response =
-        Http.RequestString
-            (url,
-                httpMethod = HttpMethod.Post,
-                headers =
-                    [ makeBasicAuthHeader credentials
-                      HttpRequestHeaders.ContentType HttpContentTypes.Json ],
-                body = TextRequest (content.ToString()))
+        Http.RequestString (
+            url = sprintf scmEndpoint settings.WebAppName "command",
+            httpMethod = HttpMethod.Post,
+            headers =
+                [ makeBasicAuthHeader credentials
+                  HttpRequestHeaders.ContentType HttpContentTypes.Json ],
+            body = TextRequest (content.ToString()))
     let parsed = response |> CommandResponse.Parse
     { Output = parsed.Output; Error = parsed.Error; ExitCode = parsed.ExitCode }
 
@@ -290,7 +327,8 @@ let ensureWebAppRespondsWith403 config =
 ///  - `config` - WebApp configuration.
 ///
 let ensureDotNetIsNotRunning config =
-    let result = executeCommand config "powershell -NoProfile -Command \"Get-Process -Name 'dotnet'\"" ""
+    let cmd ="powershell -NoProfile -Command \"Get-Process -Name 'dotnet'\""
+    let result = executeCommand config cmd ""
     result.ExitCode <> 0
 
 /// Waits until the site is stopped (i.e. all the conditions are true).
@@ -305,9 +343,9 @@ let rec ensureWebAppIsStopped config conds =
     let settings = config.Settings
     let result = conds |> Seq.fold (fun o f -> o && f config) true
     if result then
-        traceVerbose "Site has stopped"
+        Trace.traceVerbose "Site has stopped"
     else
-        traceVerbose "Site is still running, waiting..."
+        Trace.traceVerbose "Site is still running, waiting..."
         System.Threading.Thread.Sleep 1000
         ensureWebAppIsStopped config conds
 
@@ -336,7 +374,7 @@ let ensureDotNetCoreAppIsStopped config =
 let stopDotNetCoreAppAndWait config =
     let settings = config.Settings
     let credentials = config.Credentials
-    use __ = traceStartTaskUsing "Azure.WebApps.Start" (sprintf "WebApp: %s" settings.WebAppName)
+    use __ = Trace.traceTask "Azure.WebApps.stopDotNetCoreAppAndWait" (sprintf "WebApp: %s" settings.WebAppName)
     callWebAppEndpoint settings credentials HttpMethod.Post "stop" |> ignore
     ensureDotNetCoreAppIsStopped config
 
